@@ -5,7 +5,9 @@
 #include <iostream>
 #include <cstring>
 #include <fstream>
+#include <iomanip>
 #include <sstream>
+#include <vector>
 #include "structures.h"
 
 using namespace std;
@@ -166,27 +168,28 @@ int main() {
 		}
 	}
 
-	unsigned char * encryptedMessage = new unsigned char[paddedMessageLen];
+	vector<unsigned char> encryptedMessage(paddedMessageLen);
 
 	string str;
-	ifstream infile;
-	infile.open("keyfile", ios::in | ios::binary);
+	ifstream infile("keyfile", ios::in | ios::binary);
 
 	if (infile.is_open())
 	{
 		getline(infile, str); // The first line of file should be the key
 		infile.close();
 	}
-
-	else cout << "Unable to open file";
+	else {
+		cerr << "Unable to open keyfile" << endl;
+		return 1;
+	}
 
 	istringstream hex_chars_stream(str);
-	unsigned char key[16];
+	unsigned char key[16] = {0};
 	int i = 0;
 	unsigned int c;
-	while (hex_chars_stream >> hex >> c)
+	while (hex_chars_stream >> hex >> c && i < 16)
 	{
-		key[i] = c;
+		key[i] = static_cast<unsigned char>(c);
 		i++;
 	}
 
@@ -195,32 +198,31 @@ int main() {
 	KeyExpansion(key, expandedKey);
 
 	for (int i = 0; i < paddedMessageLen; i += 16) {
-		AESEncrypt(paddedMessage+i, expandedKey, encryptedMessage+i);
+		AESEncrypt(paddedMessage+i, expandedKey, encryptedMessage.data()+i);
 	}
 
 	cout << "Encrypted message in hex:" << endl;
 	for (int i = 0; i < paddedMessageLen; i++) {
-		cout << hex << (int) encryptedMessage[i];
+		cout << hex << setw(2) << setfill('0') << static_cast<int>(encryptedMessage[i]);
 		cout << " ";
 	}
 
-	cout << endl;
+	cout << dec << endl;
 
-	// Write the encrypted string out to file "message.aes"
-	ofstream outfile;
-	outfile.open("message.aes", ios::out | ios::binary);
+	// Write the encrypted bytes out to file "message.aes"
+	ofstream outfile("message.aes", ios::out | ios::binary);
 	if (outfile.is_open())
 	{
-		outfile << encryptedMessage;
+		outfile.write(reinterpret_cast<const char *>(encryptedMessage.data()), paddedMessageLen);
 		outfile.close();
 		cout << "Wrote encrypted message to file message.aes" << endl;
 	}
+	else {
+		cerr << "Unable to open message.aes for writing" << endl;
+		return 1;
+	}
 
-	else cout << "Unable to open file";
-
-	// Free memory
 	delete[] paddedMessage;
-	delete[] encryptedMessage;
 
 	return 0;
 }

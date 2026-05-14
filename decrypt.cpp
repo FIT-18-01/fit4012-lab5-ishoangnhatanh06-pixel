@@ -5,7 +5,9 @@
 #include <iostream>
 #include <cstring>
 #include <fstream>
+#include <iomanip>
 #include <sstream>
+#include <vector>
 #include "structures.h"
 
 using namespace std;
@@ -145,75 +147,61 @@ int main() {
 	cout << "=============================" << endl;
 
 	// Read in the message from message.aes
-	string msgstr;
-	ifstream infile;
-	infile.open("message.aes", ios::in | ios::binary);
-
-	if (infile.is_open())
-	{
-		getline(infile, msgstr); // The first line of file is the message
-		cout << "Read in encrypted message from message.aes" << endl;
-		infile.close();
+	ifstream infile("message.aes", ios::in | ios::binary | ios::ate);
+	if (!infile.is_open()) {
+		cerr << "Unable to open message.aes" << endl;
+		return 1;
 	}
 
-	else cout << "Unable to open file";
+	streamsize messageLen = infile.tellg();
+	infile.seekg(0, ios::beg);
 
-	char * msg = new char[msgstr.size()+1];
-
-	strcpy(msg, msgstr.c_str());
-
-	int n = strlen((const char*)msg);
-
-	unsigned char * encryptedMessage = new unsigned char[n];
-	for (int i = 0; i < n; i++) {
-		encryptedMessage[i] = (unsigned char)msg[i];
+	vector<unsigned char> encryptedMessage(messageLen);
+	if (!infile.read(reinterpret_cast<char *>(encryptedMessage.data()), messageLen)) {
+		cerr << "Failed to read message.aes" << endl;
+		return 1;
 	}
 
-	// Free memory
-	delete[] msg;
+	cout << "Read in encrypted message from message.aes" << endl;
+	infile.close();
 
 	// Read in the key
 	string keystr;
-	ifstream keyfile;
-	keyfile.open("keyfile", ios::in | ios::binary);
-
-	if (keyfile.is_open())
-	{
-		getline(keyfile, keystr); // The first line of file should be the key
-		cout << "Read in the 128-bit key from keyfile" << endl;
-		keyfile.close();
+	ifstream keyfile("keyfile", ios::in | ios::binary);
+	if (!keyfile.is_open()) {
+		cerr << "Unable to open keyfile" << endl;
+		return 1;
 	}
 
-	else cout << "Unable to open file";
+	getline(keyfile, keystr); // The first line of file should be the key
+	cout << "Read in the 128-bit key from keyfile" << endl;
+	keyfile.close();
 
 	istringstream hex_chars_stream(keystr);
-	unsigned char key[16];
+	unsigned char key[16] = {0};
 	int i = 0;
 	unsigned int c;
-	while (hex_chars_stream >> hex >> c)
+	while (hex_chars_stream >> hex >> c && i < 16)
 	{
-		key[i] = c;
+		key[i] = static_cast<unsigned char>(c);
 		i++;
 	}
 
 	unsigned char expandedKey[176];
 
 	KeyExpansion(key, expandedKey);
-	
-	int messageLen = strlen((const char *)encryptedMessage);
 
-	unsigned char * decryptedMessage = new unsigned char[messageLen];
-
+	vector<unsigned char> decryptedMessage(messageLen);
 	for (int i = 0; i < messageLen; i += 16) {
-		AESDecrypt(encryptedMessage + i, expandedKey, decryptedMessage + i);
+		AESDecrypt(encryptedMessage.data() + i, expandedKey, decryptedMessage.data() + i);
 	}
 
 	cout << "Decrypted message in hex:" << endl;
 	for (int i = 0; i < messageLen; i++) {
-		cout << hex << (int)decryptedMessage[i];
+		cout << hex << setw(2) << setfill('0') << static_cast<int>(decryptedMessage[i]);
 		cout << " ";
 	}
-	cout << endl;
+	cout << dec << endl;
 	cout << "Decrypted message: ";
 	for (int i = 0; i < messageLen; i++) {
 		cout << decryptedMessage[i];
